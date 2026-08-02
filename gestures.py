@@ -21,11 +21,13 @@ class GestureInput:
         self._lock = threading.Lock()
         self._running = True
         self._hands_seen = False
-        self._neutral = C.THROTTLE_NEUTRAL
+        self._narrow = C.THROTTLE_GRIP_NARROW
+        self._wide = C.THROTTLE_GRIP_WIDE
+        self._span = C.THROTTLE_CALIBRATE_SPAN
         self._calibrate_request = False
-        self._last_mid_y = None
+        self._last_grip = None
 
-        
+        # Imported lazily so missing deps degrade gracefully to keyboard.
         import cv2
         from hand_tracking import make_backend
 
@@ -36,7 +38,7 @@ class GestureInput:
                 f"could not open camera {cam_index} "
                 "(in use by another app, or no camera present?)"
             )
-        
+        # smaller frames = noticeably faster inference
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
@@ -49,7 +51,6 @@ class GestureInput:
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
-    
     def _loop(self):
         cv2 = self._cv2
         while self._running:
@@ -58,13 +59,13 @@ class GestureInput:
                 time.sleep(0.01)
                 continue
 
-            frame = cv2.flip(frame, 1)              
+            frame = cv2.flip(frame, 1)              # mirror: feels natural
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             ts_ms = (time.time() - self._t0) * 1000.0
 
             try:
                 wrists = self._backend.wrists(rgb, ts_ms)
-            except Exception:  
+            except Exception:  # noqa: BLE001 - never kill the thread
                 wrists = []
 
             with self._lock:
@@ -72,34 +73,35 @@ class GestureInput:
 
             if len(wrists) >= 2:
                 self._hands_seen = True
-                wrists.sort(key=lambda p: p[0])     
+                wrists.sort(key=lambda p: p[0])     # left hand first by x
                 (lx, ly), (rx, ry) = wrists[0], wrists[1]
 
                 angle = math.degrees(math.atan2(ry - ly, rx - lx))
                 steer = _clamp(angle / C.WHEEL_MAX_DEG, -1.0, 1.0)
 
-                mid_y = (ly + ry) / 2.0
-                self._last_mid_y = mid_y
-
                 
+                grip = math.hypot(rx - lx, ry - ly)
+                self._last_grip = grip
+
                 if self._calibrate_request:
-                    self._neutral = mid_y
+                    half = self._span / 2.0
+                    self._narrow = max(grip - half, 0.02)
+                    self._wide = grip + half
                     self._calibrate_request = False
-                    print(f"[gesture] neutral set to {mid_y:.3f} "
-                          f"(raise hands = gas, lower = brake)")
+                    print(f"[gesture] coast width set to {grip:.3f} "
+                          f"(gas below {self._narrow:.3f}, "
+                          f"brake above {self._wide:.3f})")
 
-                
-                rng = max(C.THROTTLE_RANGE, 1e-6)
-                raw = (self._neutral - mid_y) / rng
+                span = max(self._wide - self._narrow, 1e-6)
+                raw = 1.0 - 2.0 * (grip - self._narrow) / span
                 if abs(raw) < C.THROTTLE_DEADZONE:
                     raw = 0.0
                 throttle = _clamp(raw, -1.0, 1.0)
 
                 if C.SHOW_CAMERA_DEBUG:
                     self._annotate(frame, (lx, ly), (rx, ry), steer, throttle,
-                                   mid_y)
+                                   grip)
             else:
-                
                 if not C.THROTTLE_HOLD_ON_LOST:
                     throttle = 0.0
                 steer *= 0.7
@@ -117,38 +119,55 @@ class GestureInput:
                     C.SHOW_CAMERA_DEBUG = False
                     cv2.destroyAllWindows()
 
-    
-    def _annotate(self, frame, lp, rp, steer, throttle, mid_y=None):
+    def _annotate(self, frame, lp, rp, steer, throttle, grip=None):
         cv2 = self._cv2
         h, w = frame.shape[:2]
         p1 = (int(lp[0] * w), int(lp[1] * h))
         p2 = (int(rp[0] * w), int(rp[1] * h))
 
-        
-        ny = int(self._neutral * h)
-        cv2.line(frame, (0, ny), (w, ny), (120, 120, 120), 1)
-        cv2.putText(frame, "neutral", (w - 90, ny - 6),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (120, 120, 120), 1)
-        
-        gy = int((self._neutral - C.THROTTLE_RANGE) * h)
-        by = int((self._neutral + C.THROTTLE_RANGE) * h)
-        cv2.line(frame, (0, gy), (w, gy), (0, 180, 0), 1)
-        cv2.line(frame, (0, by), (w, by), (0, 0, 200), 1)
-
-        cv2.line(frame, p1, p2, (0, 220, 0), 4)
+       
+        if throttle > 0.05:
+            line_col = (0, 220, 0)          # green = accelerating
+        elif throttle < -0.05:
+            line_col = (0, 0, 255)          # red = braking
+        else:
+            line_col = (200, 200, 200)      # grey = coasting
+        cv2.line(frame, p1, p2, line_col, 4)
         cv2.circle(frame, p1, 12, (0, 120, 255), -1)
         cv2.circle(frame, p2, 12, (0, 120, 255), -1)
 
-        col = (0, 220, 0) if throttle > 0.05 else (
-            (0, 0, 255) if throttle < -0.05 else (200, 200, 200))
-        cv2.putText(frame, f"steer {steer:+.2f}  gas {throttle:+.2f}",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, col, 2)
-        if mid_y is not None:
-            cv2.putText(frame, f"hands y {mid_y:.2f}  neutral {self._neutral:.2f}",
+        bar_y = h - 40
+        x0, x1 = 20, w - 20
+        cv2.line(frame, (x0, bar_y), (x1, bar_y), (90, 90, 90), 3)
+
+        def bx(val):
+            """Map a separation value to a position on the bar."""
+            lo, hi = self._narrow, self._wide
+            t = (val - lo) / max(hi - lo, 1e-6)
+            t = min(max(t, 0.0), 1.0)
+            return int(x0 + t * (x1 - x0))
+
+        cv2.line(frame, (bx(self._narrow), bar_y - 12),
+                 (bx(self._narrow), bar_y + 12), (0, 220, 0), 3)
+        cv2.line(frame, (bx(self._wide), bar_y - 12),
+                 (bx(self._wide), bar_y + 12), (0, 0, 255), 3)
+        cv2.putText(frame, "GAS", (bx(self._narrow) - 14, bar_y + 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 220, 0), 1)
+        cv2.putText(frame, "BRAKE", (bx(self._wide) - 24, bar_y + 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1)
+        if grip is not None:
+            cv2.circle(frame, (bx(grip), bar_y), 9, line_col, -1)
+
+        cv2.putText(frame, f"steer {steer:+.2f}   gas {throttle:+.2f}",
+                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, line_col, 2)
+        if grip is not None:
+            cv2.putText(frame,
+                        f"grip {grip:.3f}  (gas<{self._narrow:.2f} "
+                        f"brake>{self._wide:.2f})",
                         (10, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
                         (255, 255, 255), 1)
-        cv2.putText(frame, "press C in GAME window to recalibrate",
-                    (10, h - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+        cv2.putText(frame, "hands CLOSE = go, WIDE = slow   |   C = calibrate",
+                    (10, h - 62), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (200, 200, 200), 1)
 
     def _hint(self, frame, n_found):
@@ -158,28 +177,27 @@ class GestureInput:
             cv2.putText(frame, msg, (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
                         0.8, (0, 200, 255), 2)
 
-    
     def read(self):
         with self._lock:
             return self._steer, self._throttle
 
     def calibrate(self):
-        
+       
         self._calibrate_request = True
-        print("[gesture] hold the wheel comfortably... calibrating")
+        print("[gesture] hold hands at coast width... calibrating")
 
     def close(self):
         self._running = False
         try:
             self._backend.close()
-        except Exception:  
+        except Exception:  # noqa: BLE001
             pass
         try:
             if getattr(self, "_cap", None) is not None:
                 self._cap.release()
-        except Exception:  
+        except Exception:  # noqa: BLE001
             pass
         try:
             self._cv2.destroyAllWindows()
-        except Exception:  
+        except Exception:  # noqa: BLE001
             pass

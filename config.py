@@ -1,3 +1,8 @@
+"""Central config and tunables for the gesture racer.
+
+Everything you'd want to tweak (screen size, physics feel, gesture
+sensitivity, colors) lives here so the other modules stay clean.
+"""
 
 import pygame
 
@@ -10,7 +15,7 @@ BG_HEIGHT = 460
 BG_Y_OFFSET = 40
 
 BG_VERTICAL_PARALLAX = 0.35
-BG_SEED = 1337            
+BG_SEED = 1337            # fixed so both players see identical mountains
 
 ROAD_W = 2000          # road half-width in world units
 SEG_L = 200            # segment length (world units along Z)
@@ -21,9 +26,9 @@ NUM_SEGMENTS = 1600    # total track length in segments
 MAX_SPEED = 12000.0        # world units / second
 ACCEL = 7000.0             # units / s^2 when throttle == 1
 BRAKE = 12000.0            # units / s^2 when throttle < 0
-FRICTION = 3000.0          # passive slowdown / s^2 (no throttle)
-OFFROAD_MAX_SPEED = 4500.0 # speed cap when off the tarmac
-STEER_RESPONSE = 8.0       # how fast steering value chases input (higher = snappier)
+FRICTION = 3000.0          
+OFFROAD_MAX_SPEED = 4500.0 
+STEER_RESPONSE = 8.0       
 
 STEER_STRENGTH = 0.65
 
@@ -43,28 +48,26 @@ HOST_CAR = pygame.Color(210, 40, 40)     # red   (player who hosts)
 CLIENT_CAR = pygame.Color(40, 90, 210)   # blue  (player who joins)
 
 
-CAR_SCALE = 7.0           # pixel multiplier on the 20x12 native art
-CAR_MAX_TURN = 22.0       # degrees of steering angle at full lock
+CAR_SCALE = 7.0           
+CAR_MAX_TURN = 22.0       
 CAR_LAYER_SPACING = 0.42  
-CAR_SWING = 1.8           # how far the nose swings out when turning
-CAR_ROT_FACTOR = 0.25     # extra per-slice tilt; 0 = off
+                          
+CAR_SWING = 1.8           
+CAR_ROT_FACTOR = 0.25     
 CAR_FRONT_ANCHORED = False  
 CAR_DRIFT_PX = 22.0       
 
-CAR_HALF_WIDTH = 380.0     # player car half-width in WORLD units
-CAR_LENGTH = 900.0         # Z extent for car-vs-car overlap
-PROP_HALF_WIDTH = 420.0    # default prop half-width (world units)
-                           #   raise = harder to squeeze past trees
+CAR_HALF_WIDTH = 500.0     
+CAR_LENGTH = 900.0         
+PROP_HALF_WIDTH = 420.0    
 
-CRASH_DURATION = 1.1       # seconds of lost control after hitting a prop
-CRASH_SPEED_KEEP = 0.18    # fraction of speed retained (0.18 = lose 82%)
+CRASH_DURATION = 1.1       
+CRASH_SPEED_KEEP = 0.18    
 BUMP_SPEED_KEEP = 0.72     
 CRASH_STEER_SPIN = 0.35
 CRASH_FLASH_TIME = 0.45    
-CRASH_GRACE = 1.2          # seconds of invulnerability after a crash
-
-
-SCENERY_WALL_X = 3900.0
+CRASH_GRACE = 1.2          
+SCENERY_WALL_X = 2100.0
 SCENERY_WALL_ENABLED = True
 CRASH_SHAKE_PX = 14.0      # screen-shake amplitude at impact
 
@@ -77,18 +80,22 @@ PROP_COLLIDE_RATIO = 2.6
 
 DEFAULT_PORT = 50007
 
-
-NET_INTERP_DELAY = 0.10    # seconds
-NET_INTERP_ENABLED = True  # False -> snap to raw packets (to compare)
+NET_INTERP_DELAY = 0.10    
+NET_INTERP_ENABLED = True  
 
 
 WHEEL_MAX_DEG = 55.0
 
 
-THROTTLE_NEUTRAL = 0.55
-THROTTLE_RANGE = 0.18      # smaller = twitchier; larger = need bigger motions
-THROTTLE_DEADZONE = 0.06   
+THROTTLE_GRIP_NARROW = 0.40
+THROTTLE_GRIP_WIDE = 0.75
+THROTTLE_DEADZONE = 0.15   # fraction of the range treated as "coast"
+
+
+THROTTLE_CALIBRATE_SPAN = 0.18   
+
+
 THROTTLE_HOLD_ON_LOST = False
 
-GESTURE_SMOOTHING = 0.4    # 0..1 low-pass on gesture values
-SHOW_CAMERA_DEBUG = True   # pop a small OpenCV window with the tracked wheel
+GESTURE_SMOOTHING = 0.4    
+SHOW_CAMERA_DEBUG = True   
