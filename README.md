@@ -1,4 +1,4 @@
-# Gesture Racer — 2-player pseudo-3D racing
+# Gesture Racer - 2-player pseudo-3D racing
 
 A two-player racer built on the classic Outrun-style pseudo-3D road. You
 steer by miming an **invisible steering wheel** in front of your webcam;
@@ -33,7 +33,7 @@ python main.py --join 127.0.0.1
 Two machines on the same network:
 
 ```bash
-# Machine A — note its LAN IP (e.g. 192.168.1.20)
+# Machine A - note its LAN IP (e.g. 192.168.1.20)
 python main.py --host
 # Machine B
 python main.py --join 192.168.1.20
@@ -44,7 +44,7 @@ both peers). `Esc` or closing the window quits.
 
 ## Controls
 
-**Gestures** — hold both hands up like you're gripping a wheel:
+**Gestures** - hold both hands up like you're gripping a wheel:
 
 | Do this | Effect |
 |---|---|
@@ -55,7 +55,7 @@ both peers). `Esc` or closing the window quits.
 
 A small camera window shows the tracked wheel; press `q` in it to hide.
 
-**Keyboard fallback** — arrow keys (↑ gas, ↓ brake, ←/→ steer).
+**Keyboard fallback** - arrow keys (↑ gas, ↓ brake, ←/→ steer).
 
 ## How it fits together
 
