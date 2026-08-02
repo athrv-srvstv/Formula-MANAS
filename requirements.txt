@@ -1,0 +1,11 @@
+pygame>=2.5
+# Gesture control (optional -- the game falls back to arrow keys without these):
+opencv-python>=4.9
+mediapipe>=0.10
+
+# NOTE: recent mediapipe builds (0.10.31/0.10.32 era) can raise
+#   "module 'mediapipe' has no attribute 'solutions'"
+# The game handles this automatically by falling back to the Tasks API.
+# If both backends fail, pin an older release that still ships solutions:
+#   pip install "mediapipe==0.10.21"
+# Diagnose with: python diagnose_gestures.py
