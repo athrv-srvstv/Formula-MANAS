@@ -92,9 +92,9 @@ NET_INTERP_ENABLED = True  # False -> snap to raw packets (to compare)
 WHEEL_MAX_DEG = 55.0
 
 
-THROTTLE_GRIP_NARROW = 0.16
-THROTTLE_GRIP_WIDE = 0.44
-THROTTLE_DEADZONE = 0.08   # fraction of the range treated as "coast"
+THROTTLE_GRIP_NARROW = 0.45
+THROTTLE_GRIP_WIDE = 0.65
+THROTTLE_DEADZONE = 0.25   # fraction of the range treated as "coast"
 
 
 THROTTLE_CALIBRATE_SPAN = 0.28   
