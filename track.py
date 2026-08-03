@@ -1,4 +1,5 @@
 
+
 import math
 from typing import List, Optional
 
@@ -11,16 +12,17 @@ class Line:
     __slots__ = (
         "i", "x", "y", "z", "X", "Y", "W", "scale", "curve",
         "spriteX", "clip", "sprite", "collide_half",
+        "prop_x", "prop_half",
         "grass_color", "rumble_color", "road_color",
     )
 
     def __init__(self, i: int):
         self.i = i
-        self.x = self.y = self.z = 0.0      
-        self.X = self.Y = self.W = 0.0      
+        self.x = self.y = self.z = 0.0      # world position
+        self.X = self.Y = self.W = 0.0      # projected screen position/width
         self.scale = 0.0
         self.curve = 0.0
-        self.spriteX = 0.0                  
+        self.spriteX = 0.0                  # roadside sprite offset
         self.clip = 0.0
         self.sprite: Optional[pygame.Surface] = None
 
@@ -36,10 +38,11 @@ class Line:
 
 
 def build_track(sprites: List[pygame.Surface]) -> List[Line]:
+    """Recreates the original circuit: right curve, hills, left curve, props."""
     lines: List[Line] = []
     for i in range(C.NUM_SEGMENTS):
         line = Line(i)
-        line.z = i * C.SEG_L + 0.00001  
+        line.z = i * C.SEG_L + 0.00001  # tiny epsilon avoids /0 in project()
 
         band = (i // 3) % 2
         line.grass_color = C.LIGHT_GRASS if band else C.DARK_GRASS
@@ -49,38 +52,41 @@ def build_track(sprites: List[pygame.Surface]) -> List[Line]:
         if 300 < i < 700:
             line.curve = 0.5          
         if i > 750:
-            line.y = math.sin(i / 30.0) * 1500   
+            line.y = math.sin(i / 30.0) * 1500   # rolling hills
         if i > 1100:
             line.curve = -0.7         
 
         
         if sprites:
+            
             sx = None
             prop = None
-            if i % 20 == 0:
-                if i < 300:
-                    sx, prop = -2.6, sprites[4 % len(sprites)]
-                elif i > 800:
-                    sx, prop = -1.9, sprites[0 % len(sprites)]
-                else:
-                    sx, prop = -1.7, sprites[3 % len(sprites)]
-            elif i % 17 == 0:
-                sx, prop = 2.1, sprites[5 % len(sprites)]
-            elif i % 23 == 0:
-                sx, prop = 1.6, sprites[1 % len(sprites)]
+            
+            wx = None
+            prop = None
+            rows = C.PROP_ROWS_X          
+            if i % 7 == 0:
+                wx, prop = -rows[0], sprites[(i // 7) % len(sprites)]
+            elif i % 7 == 3:
+                wx, prop = rows[0], sprites[(i // 7 + 2) % len(sprites)]
+            elif i % 9 == 0:
+                wx, prop = -rows[1], sprites[(i // 9 + 4) % len(sprites)]
+            elif i % 9 == 4:
+                wx, prop = rows[1], sprites[(i // 9 + 5) % len(sprites)]
+            elif i % 11 == 0:
+                wx, prop = -rows[2], sprites[(i // 11 + 1) % len(sprites)]
+            elif i % 13 == 0:
+                wx, prop = rows[2], sprites[(i // 13 + 3) % len(sprites)]
 
-            if i == 400:                      
-                sx, prop = -2.2, sprites[6 % len(sprites)]
+            if i == 400:                      # landmark prop
+                wx, prop = -rows[2], sprites[6 % len(sprites)]
 
             if prop is not None:
-                
-                if abs(sx) < C.PROP_MIN_OFFSET:
-                    sx = C.PROP_MIN_OFFSET if sx >= 0 else -C.PROP_MIN_OFFSET
-                line.spriteX, line.sprite = sx, prop
-                
-                line.collide_half = (
-                    prop.get_width() * C.PROP_COLLIDE_RATIO
-                )
+                line.sprite = prop
+                line.prop_x = float(wx)
+                line.prop_half = C.PROP_WORLD_WIDTH / 2.0
+                line.collide_half = line.prop_half
+                line.spriteX = wx / C.ROAD_W
 
         lines.append(line)
     return lines

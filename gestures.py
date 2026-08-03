@@ -27,7 +27,6 @@ class GestureInput:
         self._calibrate_request = False
         self._last_grip = None
 
-        # Imported lazily so missing deps degrade gracefully to keyboard.
         import cv2
         from hand_tracking import make_backend
 
@@ -38,7 +37,6 @@ class GestureInput:
                 f"could not open camera {cam_index} "
                 "(in use by another app, or no camera present?)"
             )
-        # smaller frames = noticeably faster inference
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
@@ -59,7 +57,7 @@ class GestureInput:
                 time.sleep(0.01)
                 continue
 
-            frame = cv2.flip(frame, 1)              # mirror: feels natural
+            frame = cv2.flip(frame, 1)             
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             ts_ms = (time.time() - self._t0) * 1000.0
 
@@ -141,7 +139,6 @@ class GestureInput:
         cv2.line(frame, (x0, bar_y), (x1, bar_y), (90, 90, 90), 3)
 
         def bx(val):
-            """Map a separation value to a position on the bar."""
             lo, hi = self._narrow, self._wide
             t = (val - lo) / max(hi - lo, 1e-6)
             t = min(max(t, 0.0), 1.0)
@@ -180,7 +177,7 @@ class GestureInput:
     def read(self):
         with self._lock:
             return self._steer, self._throttle
-
+#
     def calibrate(self):
        
         self._calibrate_request = True

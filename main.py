@@ -1,4 +1,5 @@
 
+
 import argparse
 import random
 import sys
@@ -15,6 +16,7 @@ from inputs import make_input
 from collision import (CrashState, check_prop_collision,
                        check_car_collision, apply_penalty)
 import sprite_stack
+from dust import DustSystem
 
 
 def parse_args():
@@ -30,7 +32,7 @@ def parse_args():
 
 
 def draw_own_car(surface, body_rgb, steer, shake_x=0.0, shake_y=0.0):
-
+    
     cx = C.WINDOW_WIDTH / 2 + steer * C.CAR_DRIFT_PX + shake_x
     cy = C.WINDOW_HEIGHT - 90 + shake_y   # rear bumper anchor
     sprite_stack.draw_stack(
@@ -64,14 +66,23 @@ def draw_hud(surface, font, player, connected, control_name,
         y += 26
 
     if crash is not None and crash.active:
-        msg = "CRASH!" if crash.kind == "prop" else "CONTACT!"
-        big = pygame.font.SysFont("consolas", 64, bold=True)
-        surf = big.render(msg, True, (255, 220, 60))
+        if crash.kind == "prop":
+            msg, sub = "CRASH!", "slowing down..."
+        else:
+            msg, sub = "CONTACT!", "watch your line"
+        big = pygame.font.SysFont("consolas", 46, bold=True)
+        small = pygame.font.SysFont("consolas", 24)
+
+        surf = big.render(msg, True, (255, 210, 70))
         rect = surf.get_rect(center=(C.WINDOW_WIDTH // 2,
                                      C.WINDOW_HEIGHT // 3))
-        shadow = big.render(msg, True, (60, 20, 0))
-        surface.blit(shadow, rect.move(3, 3))
+        surface.blit(big.render(msg, True, (50, 18, 0)), rect.move(3, 3))
         surface.blit(surf, rect)
+
+        s2 = small.render(sub, True, (255, 245, 220))
+        r2 = s2.get_rect(center=(C.WINDOW_WIDTH // 2, rect.bottom + 20))
+        surface.blit(small.render(sub, True, (50, 18, 0)), r2.move(2, 2))
+        surface.blit(s2, r2)
 
 
 def main():
@@ -107,12 +118,13 @@ def main():
           f"{'0.0.0.0' if is_host else host_ip}:{args.port}")
 
     crash = CrashState()
+    dust = DustSystem()
     shake_x = shake_y = 0.0
-    cam_extra_h = 1500.0  # camera height above the road
+    cam_extra_h = 1500.0  
     running = True
     while running:
         dt = clock.tick(C.FPS) / 1000.0
-        dt = min(dt, 0.05)  # clamp huge hitches so physics stays sane
+        dt = min(dt, 0.05)  
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -121,16 +133,14 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
                 elif event.key == pygame.K_c:
-                    # recalibrate gesture neutral to current hand height
                     controller.calibrate()
 
-        
         steer_in, throttle_in = controller.read()
         curve_here = lines[int(player.pos // C.SEG_L) % N].curve
 
         crash.update(dt)
         if crash.active:
-         
+            
             spin = C.CRASH_STEER_SPIN * (1 if crash.count % 2 else -1)
             steer_in, throttle_in = spin, 0.0
 
@@ -161,7 +171,6 @@ def main():
                     player.pos, player.x,
                     remote["pos"], remote["x"], track_len):
                 apply_penalty(player, crash, "car")
-                # nudge apart so we don't grind against each other
                 player.x += 120.0 if player.x >= remote["x"] else -120.0
 
         if crash.flash > 0.0:
@@ -171,14 +180,21 @@ def main():
         else:
             shake_x = shake_y = 0.0
 
+        
+        dust_x = C.WINDOW_WIDTH / 2 + player.steer * C.CAR_DRIFT_PX + shake_x
+        dust_y = C.WINDOW_HEIGHT - 78 + shake_y
+        dust.update(dt, player.speed, player.steer, throttle_in,
+                    dust_x, dust_y, abs(player.x) > C.ROAD_W)
+
         renderer.scroll_background(curve_here, player.speed)
         renderer.draw(player.x, player.pos, cam_extra_h, player.speed, remote)
+        dust.draw(window)          
         draw_own_car(window, local_color, player.steer, shake_x, shake_y)
 
         if crash.flash > 0.0:
             flash = pygame.Surface((C.WINDOW_WIDTH, C.WINDOW_HEIGHT),
                                    pygame.SRCALPHA)
-            flash.fill((200, 40, 30, int(110 * crash.flash)))
+            flash.fill((210, 120, 40, int(70 * crash.flash)))
             window.blit(flash, (0, 0))
         draw_hud(window, font, player, net.connected(), controller.name,
                  steer_in, throttle_in, net.stats()["pps"], crash)

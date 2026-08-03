@@ -1,4 +1,5 @@
 
+
 from typing import List, Optional
 
 import pygame
@@ -22,7 +23,6 @@ class Renderer:
         self.lines = lines
         self.N = len(lines)
 
-        
         bw, bh = background.get_width(), background.get_height()
         self.bg = pygame.Surface((bw * 3, bh))
         for k in range(3):
@@ -32,9 +32,7 @@ class Renderer:
         self._bg_base_y = C.BG_Y_OFFSET
         self._cam_h_ref = None       
 
-    
     def scroll_background(self, curve: float, speed: float):
-        
         if speed > 0:
             self.bg_rect.x -= curve * 2
         elif speed < 0:
@@ -63,6 +61,7 @@ class Renderer:
         x = dx = 0.0
         maxy = C.WINDOW_HEIGHT
 
+        
         for n in range(start, start + C.SHOW_N_SEG):
             cur = lines[n % N]
             cur.project(cam_x - x, cam_h,
@@ -101,43 +100,51 @@ class Renderer:
                 self._draw_remote(lines[idx], remote)
 
     def _draw_prop(self, line: Line):
+        
         spr = line.sprite
-        if spr is None:
+        if spr is None or line.W <= 0:
             return
-        w, h = spr.get_width(), spr.get_height()
-        dest_x = line.X + line.scale * line.spriteX * C.WINDOW_WIDTH / 2
-        dest_y = line.Y + 4
-        dest_w = w * line.W / 266
-        dest_h = h * line.W / 266
-        dest_x += dest_w * line.spriteX
-        dest_y += dest_h * -1
+
+        src_w, src_h = spr.get_width(), spr.get_height()
+        if src_w <= 0 or src_h <= 0:
+            return
+
+        
+        px_per_world = line.W / C.ROAD_W
+
+        dest_w = (line.prop_half * 2.0) * px_per_world
+        dest_h = dest_w * (src_h / src_w)          
+        centre_x = line.X + line.prop_x * px_per_world
+        dest_x = centre_x - dest_w / 2.0
+        dest_y = line.Y - dest_h                    
+
+        if dest_w < 1 or dest_h < 1:
+            return
+        if dest_w > C.WINDOW_WIDTH * C.PROP_MAX_UPSCALE:
+            return
+        if dest_x + dest_w < 0 or dest_x > C.WINDOW_WIDTH:
+            return
 
         clip_h = dest_y + dest_h - line.clip
         if clip_h < 0:
             clip_h = 0
         if clip_h >= dest_h:
             return
-        if dest_w < 1 or dest_h < 1:
-            return
-
-        
-        if dest_w > w * C.PROP_MAX_UPSCALE:
-            return
-
-        if dest_x + dest_w < 0 or dest_x > C.WINDOW_WIDTH:
-            return
 
         scaled = pygame.transform.scale(spr, (int(dest_w), int(dest_h)))
-        crop = scaled.subsurface(0, 0, int(dest_w), int(dest_h - clip_h))
+        crop = scaled.subsurface(0, 0, int(dest_w),
+                                 max(int(dest_h - clip_h), 1))
         self.window.blit(crop, (dest_x, dest_y))
 
+    
     def _draw_remote(self, line: Line, remote: dict):
+        
         if line.scale <= 0:
             return
         sx = line.X + line.scale * remote["x"] * C.WINDOW_WIDTH / 2
         sy = line.Y
 
-        
+        #
         scale = (line.W * 2.0 / 3.0) / sprite_stack.NATIVE_W
         if scale < 0.5:          
             return
