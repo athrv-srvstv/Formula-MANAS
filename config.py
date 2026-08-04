@@ -1,5 +1,4 @@
 
-
 import pygame
 
 WINDOW_WIDTH = 1024
@@ -13,18 +12,18 @@ BG_Y_OFFSET = 40
 BG_VERTICAL_PARALLAX = 0.35
 BG_SEED = 1337            
 
-ROAD_W = 2000          # road half-width in world units
-SEG_L = 200            # segment length (world units along Z)
+ROAD_W = 3500          
+SEG_L = 200            
 CAM_D = 0.84           
 SHOW_N_SEG = 300       
 NUM_SEGMENTS = 1600    
 
-MAX_SPEED = 12000.0        # world units / second
+MAX_SPEED = 18000.0        
 ACCEL = 7000.0             
 BRAKE = 12000.0            
-FRICTION = 3000.0          # passive slowdown / s^2 (no throttle)
-OFFROAD_MAX_SPEED = 4500.0 # speed cap when off the tarmac
-STEER_RESPONSE = 8.0       
+FRICTION = 3000.0          
+OFFROAD_MAX_SPEED = 4500.0 
+STEER_RESPONSE = 8.0      
 STEER_STRENGTH = 0.65
 
 CENTRIFUGAL = 0.30
@@ -43,38 +42,47 @@ HOST_CAR = pygame.Color(210, 40, 40)     # red   (player who hosts)
 CLIENT_CAR = pygame.Color(40, 90, 210)   # blue  (player who joins)
 
 
-CAR_SCALE = 7.0           # pixel multiplier on the 20x12 native art
-CAR_MAX_TURN = 22.0       # degrees of steering angle at full lock
+CAR_SCALE = 7.0           
+CAR_MAX_TURN = 22.0       
 CAR_LAYER_SPACING = 0.42 
-CAR_SWING = 0.8           # how far the nose swings out when turning
-CAR_ROT_FACTOR = 0.25     # extra per-slice tilt; 0 = off
+                          
+CAR_SWING = 0.8           
+CAR_ROT_FACTOR = 0.25     
 CAR_FRONT_ANCHORED = False  
-CAR_DRIFT_PX = 22.0       # how far the whole car slides toward the turn
+CAR_DRIFT_PX = 22.0       
 
-CAR_HALF_WIDTH = 380.0     # player car half-width in WORLD units
-CAR_LENGTH = 900.0         # Z extent for car-vs-car overlap
+
+CAR_WORLD_WIDTH = 850.0
+CAR_MIN_DRAW_SCALE = 0.12   
+
+
+START_OFFSET_X = 700.0
+
+GAP_METRES_PER_SEGMENT = 8.0
+
+CAR_HALF_WIDTH = 380.0   
+CAR_LENGTH = 900.0         
 PROP_HALF_WIDTH = 110.0    
 PROP_DEPTH_SEGMENTS = 3
-                           #   raise = harder to squeeze past trees
+                          
 
-CRASH_DURATION = 0.55      # seconds of lost control after a tree
+CRASH_DURATION = 0.55     
 CRASH_SPEED_KEEP = 0.45    
 BUMP_SPEED_KEEP = 0.72     
 CRASH_STEER_SPIN = 0.35
 CRASH_FLASH_TIME = 0.45    
-CRASH_GRACE = 0.9          # seconds of invulnerability after a crash
+CRASH_GRACE = 0.9          
 
-
-SCENERY_WALL_X = 3200.0
+SCENERY_WALL_X = 5000.0
 SCENERY_WALL_ENABLED = True
-CRASH_SHAKE_PX = 14.0      # screen-shake amplitude at impact
+CRASH_SHAKE_PX = 14.0     
 
 
-PROP_ROWS_X = (3300.0, 3500.0, 4200.0)
-PROP_WORLD_WIDTH = 700.0   # how wide a tree is, in world units
+PROP_ROWS_X = (3500.0, 3500.0, 4200.0)
+PROP_WORLD_WIDTH = 700.0   
 
 PROP_HALF_WIDTH = 350.0
-PROP_MIN_OFFSET = 2.1
+PROP_MIN_OFFSET = 2.8
 PROP_COLLIDE_RATIO = 0.9
 
 
@@ -85,48 +93,78 @@ PROP_MAX_UPSCALE = 2.5
 
 DEFAULT_PORT = 50007
 
-NET_INTERP_DELAY = 0.10    # seconds
-NET_INTERP_ENABLED = True  # False -> snap to raw packets (to compare)
+NET_INTERP_DELAY = 0.10     
+NET_INTERP_ENABLED = True   
 
-
+ 
 WHEEL_MAX_DEG = 55.0
 
+ 
+THROTTLE_GRIP_NARROW = 0.16
+THROTTLE_GRIP_WIDE = 0.44
+THROTTLE_DEADZONE = 0.08    
 
-THROTTLE_GRIP_NARROW = 0.45
-THROTTLE_GRIP_WIDE = 0.65
-THROTTLE_DEADZONE = 0.25   # fraction of the range treated as "coast"
+ 
+THROTTLE_CALIBRATE_SPAN = 0.28    
 
-
-THROTTLE_CALIBRATE_SPAN = 0.28   
+ 
 THROTTLE_HOLD_ON_LOST = False
 
-GESTURE_SMOOTHING = 0.4    # 0..1 low-pass on gesture values
-SHOW_CAMERA_DEBUG = True   # pop a small OpenCV window with the tracked wheel
+GESTURE_SMOOTHING = 0.4     
+SHOW_CAMERA_DEBUG = True    
+
+
+ 
+DUST_RATE_LAUNCH = 90.0      
+DUST_RATE_BRAKE = 130.0      
+DUST_RATE_CORNER = 70.0      
+DUST_RATE_OFFROAD = 55.0     
+DUST_OFFROAD_MULT = 2.2      
+
+DUST_LAUNCH_SPEED_FRAC = 0.35    
+DUST_BRAKE_ACCEL = 2500.0      
+DUST_STEER_MIN = 0.35           
+
+DUST_VY_BACK = 60.0         
+DUST_VX_CORNER = 150.0      
+DUST_JITTER = 45.0          
+DUST_SPREAD = 50.0          
+DUST_DRAG = 3.0             
+DUST_RISE = 40.0            
+DUST_GROWTH = 20.0          
+
+DUST_LIFE = (0.25, 1.5)     
+DUST_SIZE = (2.6, 7.0)      
+DUST_ALPHA = 255             
+DUST_TINT_ROAD = (135, 165) 
+DUST_TINT_DIRT = (150, 185) 
+DUST_MAX = 1000              
 
 
 
-DUST_RATE_LAUNCH = 90.0     # wheelspin when flooring it from low speed
-DUST_RATE_BRAKE = 130.0     # heavy braking
-DUST_RATE_CORNER = 70.0     # tyre scrub while turning at speed
-DUST_RATE_OFFROAD = 55.0    # just from driving on dirt
-DUST_OFFROAD_MULT = 2.2     # everything kicks up more off the tarmac
-
-DUST_LAUNCH_SPEED_FRAC = 0.35   # "low speed" = below this fraction of MAX
-DUST_BRAKE_ACCEL = 2500.0       # deceleration (units/s^2) that counts as braking
-DUST_STEER_MIN = 0.35           # steering past this scrubs the tyres
-
-DUST_VY_BACK = 75.0         # initial downward/backward push (screen px/s)
-DUST_VX_CORNER = 150.0      # sideways throw when cornering
-DUST_JITTER = 55.0          # random velocity spread
-DUST_SPREAD = 70.0          # horizontal spawn spread across the rear axle
-DUST_DRAG = 2.4             # how fast particles lose momentum
-DUST_RISE = 26.0            # upward drift (px/s^2), dust hangs and lifts
-DUST_GROWTH = 13.0          # px/s the puff expands as it diffuses
+SPEEDLINE_ENABLED = True
+SPEEDLINE_RATE = 150.0          
+SPEEDLINE_MIN_SPEED_FRAC = 0.35 
+SPEEDLINE_CURVE = 1.7           
+SPEEDLINE_ACCEL_MIN = 1200.0    
+SPEEDLINE_ACCEL_BOOST = 1.9     
 
 
-DUST_LIFE = (0.15, 1.5)     # seconds
-DUST_SIZE = (2.6, 6.0)      # starting radius in px
-DUST_ALPHA = 200             # peak opacity (0-255); lower = subtler
-DUST_TINT_ROAD = (130, 165) # grey-ish grit on tarmac
-DUST_TINT_DIRT = (150, 185) # browner dust off-road
-DUST_MAX = 1000              # hard cap on live particles
+SPEEDLINE_INNER_RADIUS = 190.0  
+SPEEDLINE_VP_Y = 0.42           
+SPEEDLINE_SPEED = (700.0, 1500.0)   
+SPEEDLINE_ACCEL = 1.6           
+SPEEDLINE_STRETCH = 0.35        
+SPEEDLINE_LENGTH = (40.0, 130.0)
+SPEEDLINE_WIDTH = (1, 3)        
+SPEEDLINE_LIFE = (0.22, 0.5)   
+SPEEDLINE_ALPHA = 120           
+SPEEDLINE_BRIGHT = (225, 255)   
+SPEEDLINE_MAX = 260             
+
+
+RACE_TOTAL_LAPS = 3        
+RACE_LINE_SEGMENTS = 4     
+RACE_COUNTDOWN = 3.5       
+RACE_BANNER_TIME = 1.4     
+RACE_FINISH_BRAKE = 2600.0 

@@ -33,6 +33,7 @@ class Renderer:
         self._cam_h_ref = None       
 
     def scroll_background(self, curve: float, speed: float):
+        
         if speed > 0:
             self.bg_rect.x -= curve * 2
         elif speed < 0:
@@ -61,12 +62,11 @@ class Renderer:
         x = dx = 0.0
         maxy = C.WINDOW_HEIGHT
 
-        
         for n in range(start, start + C.SHOW_N_SEG):
             cur = lines[n % N]
             cur.project(cam_x - x, cam_h,
                         pos - (N * C.SEG_L if n >= N else 0))
-            x += dx            
+            x += dx            # keep curve accumulation for EVERY segment
             dx += cur.curve
             cur.clip = maxy
 
@@ -79,7 +79,7 @@ class Renderer:
             maxy = cur.Y
 
             prev = lines[(n - 1) % N]
-            if prev.scale <= 0:      
+            if prev.scale <= 0:      # nearest edge is behind us; skip this quad
                 continue
             _draw_quad(self.window, cur.grass_color,
                        0, prev.Y, C.WINDOW_WIDTH, 0, cur.Y, C.WINDOW_WIDTH)
@@ -89,18 +89,28 @@ class Renderer:
             _draw_quad(self.window, cur.road_color,
                        prev.X, prev.Y, prev.W, cur.X, cur.Y, cur.W)
 
+        # index of the segment the remote car sits on (if visible this frame)
         remote_seg = None
         if remote is not None:
             remote_seg = int(remote["pos"] // C.SEG_L) % N
 
-        for n in range(start + C.SHOW_N_SEG, start + 1, -1):
+     
+        drew_remote = False
+        for n in range(start + C.SHOW_N_SEG, start - 1, -1):
             idx = n % N
             self._draw_prop(lines[idx])
             if remote_seg is not None and idx == remote_seg:
                 self._draw_remote(lines[idx], remote)
+                drew_remote = True
+
+        
+        if remote is not None and not drew_remote:
+            near = lines[(start + 2) % N]
+            if near.scale > 0:
+                self._draw_remote(near, remote)
 
     def _draw_prop(self, line: Line):
-        
+       
         spr = line.sprite
         if spr is None or line.W <= 0:
             return
@@ -109,14 +119,13 @@ class Renderer:
         if src_w <= 0 or src_h <= 0:
             return
 
-        
         px_per_world = line.W / C.ROAD_W
 
         dest_w = (line.prop_half * 2.0) * px_per_world
-        dest_h = dest_w * (src_h / src_w)          
+        dest_h = dest_w * (src_h / src_w)          # keep aspect ratio
         centre_x = line.X + line.prop_x * px_per_world
         dest_x = centre_x - dest_w / 2.0
-        dest_y = line.Y - dest_h                    
+        dest_y = line.Y - dest_h                    # base sits on the ground
 
         if dest_w < 1 or dest_h < 1:
             return
@@ -136,19 +145,25 @@ class Renderer:
                                  max(int(dest_h - clip_h), 1))
         self.window.blit(crop, (dest_x, dest_y))
 
-    
     def _draw_remote(self, line: Line, remote: dict):
-        
-        if line.scale <= 0:
+       
+        if line.scale <= 0 or line.W <= 0:
             return
-        sx = line.X + line.scale * remote["x"] * C.WINDOW_WIDTH / 2
+
+        px_per_world = line.W / C.ROAD_W
+
+        sx = line.X + remote["x"] * px_per_world
         sy = line.Y
 
-        #
-        scale = (line.W * 2.0 / 3.0) / sprite_stack.NATIVE_W
-        if scale < 0.5:          
+        car_px = C.CAR_WORLD_WIDTH * px_per_world
+        scale = car_px / sprite_stack.NATIVE_W
+
+       
+        if scale < C.CAR_MIN_DRAW_SCALE:
             return
-        if scale > C.CAR_SCALE * 1.6:   
+        if car_px > C.WINDOW_WIDTH * 1.5:
+            return
+        if sx < -car_px or sx > C.WINDOW_WIDTH + car_px:
             return
 
         angle = remote["steer"] * C.CAR_MAX_TURN + line.curve * 12.0
