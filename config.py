@@ -23,10 +23,12 @@ ACCEL = 7000.0
 BRAKE = 12000.0            
 FRICTION = 3000.0          
 OFFROAD_MAX_SPEED = 4500.0 
-STEER_RESPONSE = 8.0      
+STEER_RESPONSE = 9.0      
 STEER_STRENGTH = 0.65
 
-CENTRIFUGAL = 0.30
+STEER_SPEED_COMPENSATION = 0.5
+
+CENTRIFUGAL = 0.35
 
 X_BOUND = 5300.0
 
@@ -34,8 +36,8 @@ DARK_GRASS = pygame.Color(0, 154, 0)
 LIGHT_GRASS = pygame.Color(16, 200, 16)
 WHITE_RUMBLE = pygame.Color(255, 255, 255)
 BLACK_RUMBLE = pygame.Color(0, 0, 0)
-DARK_ROAD = pygame.Color(105, 105, 105)
-LIGHT_ROAD = pygame.Color(107, 107, 107)
+DARK_ROAD = pygame.Color(58, 58, 64)
+LIGHT_ROAD = pygame.Color(66, 66, 72)
 SKY_FILL = (105, 205, 240)
 
 HOST_CAR = pygame.Color(210, 40, 40)     # red   (player who hosts)
@@ -44,9 +46,8 @@ CLIENT_CAR = pygame.Color(40, 90, 210)   # blue  (player who joins)
 
 CAR_SCALE = 7.0           
 CAR_MAX_TURN = 22.0       
-CAR_LAYER_SPACING = 0.42 
-                          
-CAR_SWING = 0.8           
+CAR_LAYER_SPACING = 0.42  
+CAR_SWING = 0.7           
 CAR_ROT_FACTOR = 0.25     
 CAR_FRONT_ANCHORED = False  
 CAR_DRIFT_PX = 22.0       
@@ -54,37 +55,49 @@ CAR_DRIFT_PX = 22.0
 
 CAR_WORLD_WIDTH = 850.0
 CAR_MIN_DRAW_SCALE = 0.12   
+CAR_MAX_DRAW_SCALE = 16.0   
+CAR_NEAR_CLAMP_SEGS = 4
 
 
 START_OFFSET_X = 700.0
 
 GAP_METRES_PER_SEGMENT = 8.0
 
-CAR_HALF_WIDTH = 380.0   
+
+ROCK_ENABLED = True
+ROCK_COUNT = 55           
+ROCK_SPREAD = 0.78        
+                           
+ROCK_WORLD_WIDTH = 480.0   
+ROCK_MIN_SEGMENT_GAP = 14  
+ROCK_START_CLEAR_SEGMENTS = 60   
+ROCK_SEED = 2027           
+ROCK_DEPTH_SEGMENTS = 2    
+
+CAR_HALF_WIDTH = 280.0     
 CAR_LENGTH = 900.0         
 PROP_HALF_WIDTH = 110.0    
 PROP_DEPTH_SEGMENTS = 3
-                          
+                           #   raise = harder to squeeze past trees
 
-CRASH_DURATION = 0.55     
+CRASH_DURATION = 0.55      # seconds of lost control after a tree
 CRASH_SPEED_KEEP = 0.45    
 BUMP_SPEED_KEEP = 0.72     
 CRASH_STEER_SPIN = 0.35
 CRASH_FLASH_TIME = 0.45    
-CRASH_GRACE = 0.9          
+CRASH_GRACE = 0.9          # seconds of invulnerability after a crash
+
 
 SCENERY_WALL_X = 5000.0
 SCENERY_WALL_ENABLED = True
-CRASH_SHAKE_PX = 14.0     
+CRASH_SHAKE_PX = 14.0      # screen-shake amplitude at impact
 
 
-PROP_ROWS_X = (3500.0, 3500.0, 4200.0)
+PROP_ROWS_X = (4200.0, 4500.0, 4700.0)
 PROP_WORLD_WIDTH = 700.0   
-
 PROP_HALF_WIDTH = 350.0
 PROP_MIN_OFFSET = 2.8
 PROP_COLLIDE_RATIO = 0.9
-
 
 PROP_DEPTH_SEGMENTS = 3
 
@@ -93,52 +106,60 @@ PROP_MAX_UPSCALE = 2.5
 
 DEFAULT_PORT = 50007
 
-NET_INTERP_DELAY = 0.10     
-NET_INTERP_ENABLED = True   
+NET_INTERP_DELAY = 0.10    # seconds
+NET_INTERP_ENABLED = True  # False -> snap to raw packets (to compare)
 
- 
+
 WHEEL_MAX_DEG = 55.0
 
- 
-THROTTLE_GRIP_NARROW = 0.16
-THROTTLE_GRIP_WIDE = 0.44
-THROTTLE_DEADZONE = 0.08    
 
- 
-THROTTLE_CALIBRATE_SPAN = 0.28    
+THROTTLE_GRIP_NARROW = 0.40
+THROTTLE_GRIP_WIDE = 0.65
+THROTTLE_DEADZONE = 0.45   # fraction of the range treated as "coast"
 
- 
+
+THROTTLE_CALIBRATE_SPAN = 0.28   
+
+
 THROTTLE_HOLD_ON_LOST = False
 
-GESTURE_SMOOTHING = 0.4     
-SHOW_CAMERA_DEBUG = True    
+
+BRAKE_OPEN_HAND_ENABLED = True
+BRAKE_OPEN_RATIO = 1.25       
+BRAKE_OPEN_MIN_FINGERS = 3     
+BRAKE_ONE_HAND_STRENGTH = -0.55  
+
+GESTURE_SMOOTHING = 0.4    
+SHOW_CAMERA_DEBUG = True   
 
 
- 
-DUST_RATE_LAUNCH = 90.0      
-DUST_RATE_BRAKE = 130.0      
-DUST_RATE_CORNER = 70.0      
-DUST_RATE_OFFROAD = 55.0     
-DUST_OFFROAD_MULT = 2.2      
 
-DUST_LAUNCH_SPEED_FRAC = 0.35    
-DUST_BRAKE_ACCEL = 2500.0      
+DUST_RATE_LAUNCH = 90.0     
+DUST_RATE_BRAKE = 130.0     
+DUST_RATE_CORNER = 70.0     
+DUST_RATE_OFFROAD = 55.0    
+DUST_OFFROAD_MULT = 2.2     
+
+DUST_LAUNCH_SPEED_FRAC = 0.35   
+DUST_BRAKE_ACCEL = 2500.0       
 DUST_STEER_MIN = 0.35           
 
-DUST_VY_BACK = 60.0         
+# Motion
+DUST_VY_BACK = 60.0        
 DUST_VX_CORNER = 150.0      
-DUST_JITTER = 45.0          
-DUST_SPREAD = 50.0          
+DUST_JITTER = 55.0          
+DUST_SPREAD = 40.0          
 DUST_DRAG = 3.0             
 DUST_RISE = 40.0            
-DUST_GROWTH = 20.0          
+DUST_GROWTH = 25.0          
 
+# Look
 DUST_LIFE = (0.25, 1.5)     
-DUST_SIZE = (2.6, 7.0)      
+DUST_SIZE = (2.8, 7.0)      
 DUST_ALPHA = 255             
-DUST_TINT_ROAD = (135, 165) 
+DUST_TINT_ROAD = (125, 165) #
 DUST_TINT_DIRT = (150, 185) 
-DUST_MAX = 1000              
+DUST_MAX = 1200              
 
 
 
@@ -149,21 +170,22 @@ SPEEDLINE_CURVE = 1.7
 SPEEDLINE_ACCEL_MIN = 1200.0    
 SPEEDLINE_ACCEL_BOOST = 1.9     
 
-
 SPEEDLINE_INNER_RADIUS = 190.0  
 SPEEDLINE_VP_Y = 0.42           
-SPEEDLINE_SPEED = (700.0, 1500.0)   
+SPEEDLINE_SPEED = (700.0, 1500.0)   # px/s outward
 SPEEDLINE_ACCEL = 1.6           
 SPEEDLINE_STRETCH = 0.35        
 SPEEDLINE_LENGTH = (40.0, 130.0)
 SPEEDLINE_WIDTH = (1, 3)        
-SPEEDLINE_LIFE = (0.22, 0.5)   
+SPEEDLINE_LIFE = (0.22, 0.5)    
 SPEEDLINE_ALPHA = 120           
 SPEEDLINE_BRIGHT = (225, 255)   
 SPEEDLINE_MAX = 260             
 
 
-RACE_TOTAL_LAPS = 3        
+RACE_TOTAL_LAPS = 5        
+RACE_LAP_SPEED_STEP = 0.18
+RACE_LAP_SPEED_MAX = 2.2   
 RACE_LINE_SEGMENTS = 4     
 RACE_COUNTDOWN = 3.5       
 RACE_BANNER_TIME = 1.4     

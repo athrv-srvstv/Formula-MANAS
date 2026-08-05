@@ -5,6 +5,7 @@ import threading
 import time
 
 import config as C
+from hand_tracking import is_open_palm
 
 
 def _clamp(v, lo, hi):
@@ -37,6 +38,7 @@ class GestureInput:
                 f"could not open camera {cam_index} "
                 "(in use by another app, or no camera present?)"
             )
+        # smaller frames = noticeably faster inference
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
@@ -57,14 +59,24 @@ class GestureInput:
                 time.sleep(0.01)
                 continue
 
-            frame = cv2.flip(frame, 1)             
+            frame = cv2.flip(frame, 1)              # mirror: feels natural
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             ts_ms = (time.time() - self._t0) * 1000.0
 
             try:
-                wrists = self._backend.wrists(rgb, ts_ms)
+                hands = self._backend.hands(rgb, ts_ms)
             except Exception:  # noqa: BLE001 - never kill the thread
-                wrists = []
+                hands = []
+            wrists = [h[0] for h in hands if h]
+
+            
+            open_hands = 0
+            if C.BRAKE_OPEN_HAND_ENABLED:
+                open_hands = sum(
+                    1 for h in hands
+                    if is_open_palm(h, C.BRAKE_OPEN_RATIO,
+                                    C.BRAKE_OPEN_MIN_FINGERS)
+                )
 
             with self._lock:
                 steer, throttle = self._steer, self._throttle
@@ -96,11 +108,20 @@ class GestureInput:
                     raw = 0.0
                 throttle = _clamp(raw, -1.0, 1.0)
 
+                
+                if open_hands >= 2:
+                    throttle = -1.0
+                elif open_hands == 1:
+                    throttle = min(throttle, C.BRAKE_ONE_HAND_STRENGTH)
+
                 if C.SHOW_CAMERA_DEBUG:
                     self._annotate(frame, (lx, ly), (rx, ry), steer, throttle,
-                                   grip)
+                                   grip, open_hands)
             else:
-                if not C.THROTTLE_HOLD_ON_LOST:
+                
+                if open_hands >= 1:
+                    throttle = -1.0
+                elif not C.THROTTLE_HOLD_ON_LOST:
                     throttle = 0.0
                 steer *= 0.7
                 if C.SHOW_CAMERA_DEBUG:
@@ -117,7 +138,8 @@ class GestureInput:
                     C.SHOW_CAMERA_DEBUG = False
                     cv2.destroyAllWindows()
 
-    def _annotate(self, frame, lp, rp, steer, throttle, grip=None):
+    def _annotate(self, frame, lp, rp, steer, throttle, grip=None,
+                  open_hands=0):
         cv2 = self._cv2
         h, w = frame.shape[:2]
         p1 = (int(lp[0] * w), int(lp[1] * h))
@@ -163,7 +185,11 @@ class GestureInput:
                         f"brake>{self._wide:.2f})",
                         (10, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
                         (255, 255, 255), 1)
-        cv2.putText(frame, "hands CLOSE = go, WIDE = slow   |   C = calibrate",
+        if open_hands:
+            label = "BRAKING" if open_hands >= 2 else "BRAKING (1 hand)"
+            cv2.putText(frame, label, (w // 2 - 90, 92),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 3)
+        cv2.putText(frame, "OPEN PALM = BRAKE   |   C = calibrate",
                     (10, h - 62), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (200, 200, 200), 1)
 
@@ -177,9 +203,9 @@ class GestureInput:
     def read(self):
         with self._lock:
             return self._steer, self._throttle
-#
+
     def calibrate(self):
-       
+        
         self._calibrate_request = True
         print("[gesture] hold hands at coast width... calibrating")
 

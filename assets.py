@@ -1,4 +1,6 @@
 
+
+import math
 import os
 import random
 from typing import List
@@ -24,7 +26,7 @@ def _ridge_points(x0, x1, base_y, peak_y, rng, passes=5, roughness=0.55):
             new_pts.append((mx, my))
             new_pts.append(b)
         pts = new_pts
-        amp *= 0.5              
+        amp *= 0.5              # finer detail each pass
 
     return pts
 
@@ -36,7 +38,6 @@ def _placeholder_bg() -> pygame.Surface:
     base = h                      
     surf = pygame.Surface((w, h))
 
-    
     for y in range(h):
         t = y / h
         pygame.draw.line(
@@ -84,14 +85,12 @@ def _placeholder_prop(idx: int) -> pygame.Surface:
         return surf
 
     if idx % 4 == 2:
-        
         c = (26, 92, 38)
         pygame.draw.circle(surf, c, (44, 180), 34)
         pygame.draw.circle(surf, c, (76, 182), 30)
         pygame.draw.circle(surf, (32, 108, 44), (60, 160), 32)
         return surf
 
-    
     pygame.draw.rect(surf, (76, 52, 34), (52, 130, 18, 90))
     canopy = [(22, 84, 34), (30, 104, 42), (18, 72, 30)]
     c = canopy[idx % len(canopy)]
@@ -104,6 +103,39 @@ def _placeholder_prop(idx: int) -> pygame.Surface:
 
 def _lighten(c, d):
     return (min(c[0] + d, 255), min(c[1] + d, 255), min(c[2] + d, 255))
+
+
+def _placeholder_rock(idx: int) -> pygame.Surface:
+    w, h = 140, 100
+    surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    rng = random.Random(900 + idx)
+
+    base = rng.randint(150, 180)
+    body = (base, base - 18, base - 42)
+    lite = (base + 34, base + 38, base + 44)
+    dark = (base - 34, base - 32, base - 28)
+
+    pts = []
+    n = 11
+    for i in range(n):
+        a = math.tau * i / n
+        r = rng.uniform(0.72, 1.0)
+        pts.append((w / 2 + math.cos(a) * (w / 2 - 6) * r,
+                    h - 8 - abs(math.sin(a)) * (h - 20) * r))
+    pygame.draw.polygon(surf, body, pts)
+    pygame.draw.polygon(surf, dark, pts, width=3)
+
+    for _ in range(2):
+        i = rng.randrange(n)
+        a, b, c = pts[i], pts[(i + 1) % n], (w / 2, h * 0.45)
+        pygame.draw.polygon(surf, lite, [a, b, c])
+
+    pygame.draw.ellipse(surf, (40, 40, 46, 120), (10, h - 16, w - 20, 14))
+    return surf
+
+
+def load_rocks() -> List[pygame.Surface]:
+    return [_placeholder_rock(i).convert_alpha() for i in range(4)]
 
 
 def load_background() -> pygame.Surface:

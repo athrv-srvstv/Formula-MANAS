@@ -27,7 +27,6 @@ class LegacyBackend:
 
     @staticmethod
     def _find_hands_module():
-        
         try:
             import mediapipe as mp
             return mp.solutions.hands
@@ -39,7 +38,7 @@ class LegacyBackend:
             return hands
         except (ImportError, AttributeError):
             pass
-        
+        # (c) from-import form
         try:
             from mediapipe.solutions import hands
             return hands
@@ -47,24 +46,27 @@ class LegacyBackend:
             pass
         return None
 
-    def wrists(self, rgb, timestamp_ms):
+    def hands(self, rgb, timestamp_ms):
         res = self._hands.process(rgb)
         out = []
         if res.multi_hand_landmarks:
             for hand in res.multi_hand_landmarks:
-                w = hand.landmark[0]        
-                out.append((w.x, w.y))
+                out.append([(lm.x, lm.y) for lm in hand.landmark])
         return out
+
+    def wrists(self, rgb, timestamp_ms):
+        return [h[0] for h in self.hands(rgb, timestamp_ms)]
 
     def close(self):
         try:
             self._hands.close()
-        except Exception:  
+        except Exception:  # noqa: BLE001
             pass
 
 
 
 def ensure_model(path=MODEL_PATH, url=MODEL_URL, quiet=False):
+    """Download the hand landmarker model bundle if we don't have it."""
     if os.path.exists(path):
         return path
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -107,8 +109,7 @@ class TasksBackend:
         self._landmarker = vision.HandLandmarker.create_from_options(options)
         self._last_ts = -1
 
-    def wrists(self, rgb, timestamp_ms):
-        
+    def hands(self, rgb, timestamp_ms):
         ts = int(timestamp_ms)
         if ts <= self._last_ts:
             ts = self._last_ts + 1
@@ -118,14 +119,16 @@ class TasksBackend:
         res = self._landmarker.detect_for_video(mp_img, ts)
         out = []
         for hand in (res.hand_landmarks or []):
-            w = hand[0]                    
-            out.append((w.x, w.y))
+            out.append([(lm.x, lm.y) for lm in hand])
         return out
+
+    def wrists(self, rgb, timestamp_ms):
+        return [h[0] for h in self.hands(rgb, timestamp_ms)]
 
     def close(self):
         try:
             self._landmarker.close()
-        except Exception:  
+        except Exception:  # noqa: BLE001
             pass
 
 
@@ -142,3 +145,32 @@ def make_backend(max_hands=2, det_conf=0.6, track_conf=0.5):
     raise RuntimeError(
         "no hand-tracking backend available:\n" + "\n".join(errors)
     )
+
+
+
+WRIST = 0
+FINGER_MCP = (5, 9, 13, 17)     
+FINGER_TIP = (8, 12, 16, 20)    
+
+
+def _dist(a, b):
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
+
+def extended_fingers(landmarks, ratio: float = 1.35) -> int:
+    
+    if not landmarks or len(landmarks) < 21:
+        return 0
+    wrist = landmarks[WRIST]
+    n = 0
+    for mcp_i, tip_i in zip(FINGER_MCP, FINGER_TIP):
+        d_mcp = _dist(landmarks[mcp_i], wrist)
+        if d_mcp < 1e-6:
+            continue
+        if _dist(landmarks[tip_i], wrist) / d_mcp > ratio:
+            n += 1
+    return n
+
+
+def is_open_palm(landmarks, ratio: float = 1.35, min_fingers: int = 3) -> bool:
+    return extended_fingers(landmarks, ratio) >= min_fingers

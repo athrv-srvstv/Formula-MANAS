@@ -1,6 +1,7 @@
 
 
 import math
+import random
 from typing import List, Optional
 
 import pygame
@@ -13,6 +14,7 @@ class Line:
         "i", "x", "y", "z", "X", "Y", "W", "scale", "curve",
         "spriteX", "clip", "sprite", "collide_half",
         "prop_x", "prop_half",
+        "rock", "rock_x", "rock_half",
         "grass_color", "rumble_color", "road_color",
     )
 
@@ -26,6 +28,16 @@ class Line:
         self.clip = 0.0
         self.sprite: Optional[pygame.Surface] = None
 
+       
+        self.prop_x = 0.0
+        self.prop_half = 0.0
+        self.collide_half = C.PROP_HALF_WIDTH
+
+        
+        self.rock: Optional[pygame.Surface] = None
+        self.rock_x = 0.0
+        self.rock_half = 0.0
+
         self.grass_color = C.DARK_GRASS
         self.rumble_color = C.BLACK_RUMBLE
         self.road_color = C.DARK_ROAD
@@ -37,12 +49,21 @@ class Line:
         self.W = self.scale * C.ROAD_W * C.WINDOW_WIDTH / 2
 
 
-def build_track(sprites: List[pygame.Surface]) -> List[Line]:
-    """Recreates the original circuit: right curve, hills, left curve, props."""
+def build_track(sprites: List[pygame.Surface],
+                rocks: Optional[List[pygame.Surface]] = None) -> List[Line]:
     lines: List[Line] = []
     for i in range(C.NUM_SEGMENTS):
         line = Line(i)
-        line.z = i * C.SEG_L + 0.00001  # tiny epsilon avoids /0 in project()
+        line.z = i * C.SEG_L + 0.00001  
+
+        
+        if i < C.RACE_LINE_SEGMENTS:
+            check = (i // 1) % 2
+            line.grass_color = C.LIGHT_GRASS if check else C.DARK_GRASS
+            line.rumble_color = (C.WHITE_RUMBLE if check else C.BLACK_RUMBLE)
+            line.road_color = (C.WHITE_RUMBLE if check else C.BLACK_RUMBLE)
+            lines.append(line)
+            continue
 
         band = (i // 3) % 2
         line.grass_color = C.LIGHT_GRASS if band else C.DARK_GRASS
@@ -50,11 +71,11 @@ def build_track(sprites: List[pygame.Surface]) -> List[Line]:
         line.road_color = C.LIGHT_ROAD if band else C.DARK_ROAD
 
         if 300 < i < 700:
-            line.curve = 0.5          
+            line.curve = 0.5          # right curve
         if i > 750:
             line.y = math.sin(i / 30.0) * 1500   # rolling hills
         if i > 1100:
-            line.curve = -0.7         
+            line.curve = -0.7         # left curve
 
         
         if sprites:
@@ -89,4 +110,34 @@ def build_track(sprites: List[pygame.Surface]) -> List[Line]:
                 line.spriteX = wx / C.ROAD_W
 
         lines.append(line)
+
+    if rocks and C.ROCK_ENABLED:
+        _scatter_rocks(lines, rocks)
+
     return lines
+
+
+def _scatter_rocks(lines: List[Line], rocks: List[pygame.Surface]):
+    
+    rng = random.Random(C.ROCK_SEED)
+    n = len(lines)
+    limit = C.ROAD_W * C.ROCK_SPREAD
+    half = C.ROCK_WORLD_WIDTH / 2.0
+
+    first = C.ROCK_START_CLEAR_SEGMENTS
+    last = n - C.ROCK_START_CLEAR_SEGMENTS
+    if last <= first:
+        return
+
+    placed = []
+    attempts = 0
+    while len(placed) < C.ROCK_COUNT and attempts < C.ROCK_COUNT * 40:
+        attempts += 1
+        seg = rng.randrange(first, last)
+        if any(abs(seg - s) < C.ROCK_MIN_SEGMENT_GAP for s in placed):
+            continue
+        line = lines[seg]
+        line.rock = rocks[rng.randrange(len(rocks))]
+        line.rock_x = rng.uniform(-limit, limit)
+        line.rock_half = half
+        placed.append(seg)

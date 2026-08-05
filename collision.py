@@ -1,15 +1,16 @@
 
+
 import config as C
 
 
 class CrashState:
 
     def __init__(self):
-        self.timer = 0.0          # seconds of crash left
-        self.grace = 0.0          # seconds of post-crash invulnerability
-        self.kind = None          # 'prop' | 'car' | None
-        self.count = 0            # crashes this session
-        self.flash = 0.0          # visual flash intensity, 0..1
+        self.timer = 0.0          
+        self.grace = 0.0          
+        self.kind = None          
+        self.count = 0            
+        self.flash = 0.0          
 
     @property
     def active(self) -> bool:
@@ -43,10 +44,11 @@ class CrashState:
 
 def segments_crossed(prev_pos: float, new_pos: float, track_len: float):
     seg_l = C.SEG_L
-    if new_pos < prev_pos:              # wrapped past the finish line
+    if new_pos < prev_pos:              
         new_pos += track_len
     first = int(prev_pos // seg_l)
     last = int(new_pos // seg_l)
+    
     if last - first > 64:
         last = first + 64
     for s in range(first, last + 1):
@@ -57,6 +59,17 @@ def check_prop_collision(lines, prev_pos, new_pos, player_x, track_len):
     
     n = len(lines)
     car_half = C.CAR_HALF_WIDTH
+
+   
+    if C.ROCK_ENABLED:
+        rdepth = max(int(C.ROCK_DEPTH_SEGMENTS), 1)
+        for s in segments_crossed(prev_pos, new_pos, track_len):
+            for back in range(rdepth):
+                line = lines[(s - back) % n]
+                if line.rock is None:
+                    continue
+                if abs(player_x - line.rock_x) < (line.rock_half + car_half):
+                    return line
 
     if C.SCENERY_WALL_ENABLED and abs(player_x) >= C.SCENERY_WALL_X:
         return lines[int(new_pos // C.SEG_L) % n]
@@ -84,7 +97,7 @@ def check_car_collision(my_pos, my_x, other_pos, other_x, track_len):
 def apply_penalty(player, crash: CrashState, kind: str) -> bool:
     if not crash.start(kind):
         return False
-    if kind == "prop":
+    if kind in ("prop", "rock"):
         player.speed *= C.CRASH_SPEED_KEEP
     else:                                  
         player.speed *= C.BUMP_SPEED_KEEP
