@@ -40,7 +40,7 @@ def parse_args():
 def draw_own_car(surface, body_rgb, steer, shake_x=0.0, shake_y=0.0):
     
     cx = C.WINDOW_WIDTH / 2 + steer * C.CAR_DRIFT_PX + shake_x
-    cy = C.WINDOW_HEIGHT - 90 + shake_y   
+    cy = C.WINDOW_HEIGHT - 90 + shake_y   # rear bumper anchor
     sprite_stack.draw_stack(
         surface, body_rgb, cx, cy,
         angle_deg=steer * C.CAR_MAX_TURN,
@@ -67,12 +67,12 @@ def draw_race_overlay(surface, race, remote_lap=None):
         t2 = sub.render(f"race starts when both cars are connected{dots}",
                         True, (235, 235, 245))
         surface.blit(t2, t2.get_rect(center=(cx, r1.bottom + 26)))
-        t3 = sub.render("press SPACE to start anyway", True, (255, 215, 120))
+        t3 = sub.render("press SPACE to start solo", True, (255, 215, 120))
         surface.blit(t3, t3.get_rect(center=(cx, r1.bottom + 58)))
         return
 
     if race.counting_down:
-        frac = race.timer - int(race.timer)      # 1.0 -> 0.0 within a second
+        frac = race.timer - int(race.timer)      
         size = int(120 + 70 * frac)
         f = pygame.font.SysFont("consolas", size, bold=True)
         txt = race.countdown_text()
@@ -95,7 +95,6 @@ def draw_race_overlay(surface, race, remote_lap=None):
         rect = surf.get_rect(center=(cx, C.WINDOW_HEIGHT // 3))
         surface.blit(surf, rect)
 
-    
     if race.finished:
         lines = race.summary_lines()
         big = pygame.font.SysFont("consolas", 38, bold=True)
@@ -121,7 +120,8 @@ def draw_race_overlay(surface, race, remote_lap=None):
             surface.blit(s, s.get_rect(midleft=(prect.left + 40, y)))
             y += 30
 
-        hint = small.render("Esc to quit", True, (150, 160, 175))
+        hint = small.render("R = race again     Esc = quit", True,
+                            (255, 220, 120))
         surface.blit(hint, hint.get_rect(center=(cx, prect.bottom - 20)))
 
 
@@ -213,7 +213,7 @@ def main():
 
     renderer = Renderer(window, lines, background)
     player = Player(name=name)
-   
+    
     player.x = -C.START_OFFSET_X if is_host else C.START_OFFSET_X
     net = NetworkPeer(is_host=is_host, host_ip=host_ip, port=args.port)
     controller = make_input(prefer_gesture=not args.keyboard)
@@ -239,6 +239,18 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                elif event.key == pygame.K_r and race.finished:
+                    
+                    race.restart()
+                    player.pos = 0.0
+                    player.speed = 0.0
+                    player.steer = 0.0
+                    player.x = (-C.START_OFFSET_X if is_host
+                                else C.START_OFFSET_X)
+                    crash = CrashState()
+                    dust.clear()
+                    speedlines.clear()
+                    force_start = False
                 elif event.key == pygame.K_SPACE and race.waiting:
                     force_start = True      
                 elif event.key == pygame.K_c:
@@ -247,8 +259,12 @@ def main():
         steer_in, throttle_in = controller.read()
         curve_here = lines[int(player.pos // C.SEG_L) % N].curve
 
-        
-        ready = solo or force_start or net.connected()
+      
+        ready = solo or force_start or (
+            net.connected()
+            and race.rematch_ready(
+                (net.remote or {}).get("round", 0))
+        )
         can_drive = race.update(dt, opponent_ready=ready)
         if not can_drive:
             steer_in = 0.0
@@ -274,6 +290,7 @@ def main():
         my_state["lap"] = race.lap
         my_state["done"] = race.finished
         my_state["rt"] = round(race.race_time, 3)
+        my_state["round"] = race.round_num
         net.send(my_state)
         if C.NET_INTERP_ENABLED:
             rstate = net.remote_interpolated(
@@ -312,9 +329,9 @@ def main():
                     player.pos, player.x,
                     remote["pos"], remote["x"], track_len):
                 apply_penalty(player, crash, "car")
+               
                 player.x += 120.0 if player.x >= remote["x"] else -120.0
 
-        
         if crash.flash > 0.0:
             amp = C.CRASH_SHAKE_PX * crash.flash
             shake_x = random.uniform(-amp, amp)
@@ -322,7 +339,7 @@ def main():
         else:
             shake_x = shake_y = 0.0
 
-       
+        
         dust_x = C.WINDOW_WIDTH / 2 + player.steer * C.CAR_DRIFT_PX + shake_x
         dust_y = C.WINDOW_HEIGHT - 78 + shake_y
         dust.update(dt, player.speed, player.steer, throttle_in,
@@ -334,7 +351,6 @@ def main():
         if C.SPEEDLINE_ENABLED:
             speedlines.update(dt, player.speed, vp_x, vp_y)
 
-        
         renderer.scroll_background(curve_here, player.speed)
         renderer.draw(player.x, player.pos, cam_extra_h, player.speed, remote)
         dust.draw(window)          
@@ -346,7 +362,6 @@ def main():
         if C.SPEEDLINE_ENABLED:
             speedlines.draw(window, vp_x, vp_y)
 
-        # impact flash: a quick red vignette that fades out
         if crash.flash > 0.0:
             flash = pygame.Surface((C.WINDOW_WIDTH, C.WINDOW_HEIGHT),
                                    pygame.SRCALPHA)

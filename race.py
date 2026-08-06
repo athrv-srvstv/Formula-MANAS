@@ -37,8 +37,11 @@ class Race:
         self.opponent_finished_at = None
         self.place = None
 
-        self._flash = 0.0          # "LAP 2" banner timer
+        self._flash = 0.0          
         self._banner = ""
+
+        
+        self.round_num = 0
 
     def update(self, dt: float, opponent_ready: bool = True) -> bool:
         
@@ -52,7 +55,7 @@ class Race:
             return False
 
         if self.state == COUNTDOWN:
-            if not opponent_ready:          # peer dropped -- go back to wait
+            if not opponent_ready:          
                 self.state = WAITING
                 self.timer = self.countdown_len
                 return False
@@ -63,13 +66,13 @@ class Race:
                 self._lap_start = 0.0
                 self._banner = "GO!"
                 self._flash = C.RACE_BANNER_TIME
-            return False                    # engine held during countdown
+            return False                    
 
         if self.state == RACING:
             self.race_time += dt
             return True
 
-        return False                        
+        return False                       
 
     def check_lap(self, prev_pos: float, new_pos: float, track_len: float):
         if self.state != RACING:
@@ -78,9 +81,9 @@ class Race:
         half = track_len / 2.0
         delta = new_pos - prev_pos
 
-        if delta < -half:                  
+        if delta < -half:                   # wrapped forwards over the line
             self._complete_lap()
-        elif delta > half:                  
+        elif delta > half:                  # reversed back over the line
             if self.lap > 1:
                 self.lap -= 1
 
@@ -102,7 +105,7 @@ class Race:
             self._flash = C.RACE_BANNER_TIME
 
     def speed_multiplier(self) -> float:
-        
+       
         m = 1.0 + (self.lap - 1) * C.RACE_LAP_SPEED_STEP
         return min(m, C.RACE_LAP_SPEED_MAX)
 
@@ -141,6 +144,17 @@ class Race:
             self.place = 1
         else:
             self.place = 1 if self.finish_time <= self.opponent_finished_at else 2
+
+    def restart(self):
+        rnd = self.round_num + 1
+        self.__init__(self.total_laps, self.countdown_len)
+        self.round_num = rnd
+
+    def rematch_ready(self, remote_round) -> bool:
+        try:
+            return int(remote_round or 0) >= self.round_num
+        except (TypeError, ValueError):
+            return False
 
     def summary_lines(self):
         out = [f"TIME  {_fmt(self.finish_time)}"]
