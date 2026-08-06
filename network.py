@@ -1,4 +1,5 @@
 
+
 import json
 import socket
 import threading
@@ -6,9 +7,30 @@ import time
 from collections import deque
 from typing import Optional
 
+import config as C
+
 
 def _lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
+
+
+def _sane(msg) -> bool:
+    
+    if not isinstance(msg, dict):
+        return False
+    for key, limit in (("pos", 1e9), ("x", 1e6), ("speed", 1e6)):
+        v = msg.get(key)
+        if v is None:
+            continue
+        if not isinstance(v, (int, float)):
+            return False
+        if v != v or abs(v) > limit:      
+            return False
+    steer = msg.get("steer")
+    if steer is not None and (not isinstance(steer, (int, float))
+                              or steer != steer or abs(steer) > 10):
+        return False
+    return True
 
 
 class NetworkPeer:
@@ -23,7 +45,7 @@ class NetworkPeer:
             self.sock.bind(("0.0.0.0", port))
         self.sock.settimeout(0.5)
 
-       
+        
         self._buf = deque(maxlen=32)
         self._last_seq = -1
         self._recv_times = deque(maxlen=60)   
@@ -46,7 +68,8 @@ class NetworkPeer:
                 msg = json.loads(data.decode("utf-8"))
             except (ValueError, UnicodeDecodeError):
                 continue
-            
+            if not _sane(msg):
+                continue          
             if self.is_host:
                 self.peer_addr = addr
 
@@ -60,7 +83,6 @@ class NetworkPeer:
                 self._buf.append((now, msg))
                 self._recv_times.append(now)
 
-    
     def send(self, state: dict):
         if self.peer_addr is None:
             return  
@@ -87,15 +109,14 @@ class NetworkPeer:
             return None
 
         if delay is None:
-            
             delay = max(min(interval * 2.0, 0.25), 0.03)
 
         render_at = time.time() - delay
         newest_t, newest_s = buf[-1]
 
-        
         if render_at >= newest_t:
-            dt = min(render_at - newest_t, 0.5)
+           
+            dt = min(render_at - newest_t, C.NET_MAX_EXTRAPOLATE)
             pos = newest_s.get("pos", 0.0) + newest_s.get("speed", 0.0) * dt
             if track_len:
                 pos %= track_len
@@ -122,7 +143,7 @@ class NetworkPeer:
         p0 = s_prev.get("pos", 0.0)
         p1 = s_curr.get("pos", 0.0)
         if track_len:
-            
+           
             if p1 - p0 < -track_len / 2.0:
                 p1 += track_len
             elif p1 - p0 > track_len / 2.0:

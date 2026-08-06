@@ -1,4 +1,5 @@
 
+
 from typing import List, Optional
 
 import pygame
@@ -26,6 +27,9 @@ class Renderer:
         self.bg = pygame.Surface((bw * 3, bh))
         for k in range(3):
             self.bg.blit(background, (bw * k, 0))
+        self._font = None
+        self.rival_behind = None
+        self.last_rel_z = 0.0
         self.bg_rect = self.bg.get_rect(topleft=(-bw, C.BG_Y_OFFSET))
         self._bg_tile_w = bw
         self._bg_base_y = C.BG_Y_OFFSET
@@ -64,7 +68,7 @@ class Renderer:
             cur = lines[n % N]
             cur.project(cam_x - x, cam_h,
                         pos - (N * C.SEG_L if n >= N else 0))
-            x += dx            # keep curve accumulation for EVERY segment
+            x += dx            
             dx += cur.curve
             cur.clip = maxy
 
@@ -77,7 +81,7 @@ class Renderer:
             maxy = cur.Y
 
             prev = lines[(n - 1) % N]
-            if prev.scale <= 0:     
+            if prev.scale <= 0:      
                 continue
             _draw_quad(self.window, cur.grass_color,
                        0, prev.Y, C.WINDOW_WIDTH, 0, cur.Y, C.WINDOW_WIDTH)
@@ -87,7 +91,8 @@ class Renderer:
             _draw_quad(self.window, cur.road_color,
                        prev.X, prev.Y, prev.W, cur.X, cur.Y, cur.W)
 
-        
+        self.rival_behind = None
+        self.last_rel_z = 0.0
         remote_seg = None
         if remote is not None:
             remote_seg = int(remote["pos"] // C.SEG_L) % N
@@ -205,7 +210,15 @@ class Renderer:
             rel_z += track_len
         elif rel_z > track_len / 2.0:
             rel_z -= track_len
+        self.last_rel_z = rel_z
 
+       
+        self.rival_behind = None
+        if rel_z < C.CAR_BEHIND_CUTOFF * C.SEG_L:
+            self.rival_behind = remote
+            return
+
+        
         min_z = C.CAR_NEAR_CLAMP_SEGS * C.SEG_L
         eff_z = max(rel_z, min_z)
         if rel_z > C.SHOW_N_SEG * C.SEG_L:
@@ -245,3 +258,56 @@ class Renderer:
             rot_factor=C.CAR_ROT_FACTOR,
             front_anchored=C.CAR_FRONT_ANCHORED,
         )
+
+       
+        delta = remote.get("lap_delta", 0)
+        if delta and scale > C.CAR_LABEL_MIN_SCALE:
+            self._draw_lap_tag(sx, sy - car_px * 0.9, delta)
+
+    def _draw_lap_tag(self, cx, cy, delta):
+        if self._font is None:
+            try:
+                self._font = pygame.font.SysFont("consolas", 18, bold=True)
+            except Exception:  # noqa: BLE001
+                return
+        n = abs(delta)
+        txt = f"-{n} LAP" if delta < 0 else f"+{n} LAP"
+        col = (255, 190, 90) if delta < 0 else (150, 230, 255)
+        surf = self._font.render(txt, True, col)
+        rect = surf.get_rect(center=(int(cx), int(max(cy, 20))))
+        bg = pygame.Surface((rect.width + 10, rect.height + 4), pygame.SRCALPHA)
+        bg.fill((10, 12, 20, 170))
+        self.window.blit(bg, bg.get_rect(center=rect.center))
+        self.window.blit(surf, rect)
+
+    def draw_rear_marker(self, remote, rel_z):
+        
+        if remote is None:
+            return
+        gap = abs(rel_z)
+        max_gap = C.CAR_REAR_MARKER_RANGE * C.SEG_L
+        if gap > max_gap:
+            return
+
+        t = 1.0 - gap / max_gap          
+        size = int(14 + 18 * t)
+        alpha = int(90 + 150 * t)
+
+        frac = max(min(remote["x"] / C.ROAD_W, 1.4), -1.4)
+        cx = C.WINDOW_WIDTH / 2 + frac * (C.WINDOW_WIDTH * 0.28)
+        cy = C.WINDOW_HEIGHT - 18
+
+        layer = pygame.Surface((C.WINDOW_WIDTH, C.WINDOW_HEIGHT),
+                               pygame.SRCALPHA)
+        col = remote["color"]
+        pygame.draw.polygon(layer, (*col, alpha), [
+            (cx, cy + size * 0.5),
+            (cx - size, cy - size * 0.5),
+            (cx + size, cy - size * 0.5),
+        ])
+        pygame.draw.polygon(layer, (255, 255, 255, alpha // 2), [
+            (cx, cy + size * 0.5),
+            (cx - size, cy - size * 0.5),
+            (cx + size, cy - size * 0.5),
+        ], 2)
+        self.window.blit(layer, (0, 0))
