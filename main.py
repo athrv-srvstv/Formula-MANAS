@@ -17,6 +17,7 @@ from inputs import make_input
 from collision import (CrashState, check_prop_collision,
                        check_car_collision, apply_penalty)
 import sprite_stack
+from audio import Audio
 from dust import DustSystem
 from speedlines import SpeedLines
 import race as race_mod
@@ -72,7 +73,7 @@ def draw_race_overlay(surface, race, remote_lap=None):
         return
 
     if race.counting_down:
-        frac = race.timer - int(race.timer)      
+        frac = race.timer - int(race.timer)      # 1.0 -> 0.0 within a second
         size = int(120 + 70 * frac)
         f = pygame.font.SysFont("consolas", size, bold=True)
         txt = race.countdown_text()
@@ -129,7 +130,7 @@ def draw_hud(surface, font, player, connected, control_name,
              steer=0.0, throttle=0.0, net_pps=0.0, crash=None,
              race=None, remote_lap=None, rival_gap=None,
              solo=False):
-    kmh = int(player.speed / 60)     
+    kmh = int(player.speed / 60)     # arbitrary "speed unit" for flavor
     lines = [
         f"{player.name}   {kmh} km/h",
         f"steer {steer:+.2f}   gas {throttle:+.2f}",
@@ -223,7 +224,11 @@ def main():
 
     crash = CrashState()
     force_start = False
+    audio = Audio()
     dust = DustSystem()
+    last_beep = None
+    prev_lap = 1
+    prev_state = None
     speedlines = SpeedLines()
     race = Race()
     shake_x = shake_y = 0.0
@@ -259,7 +264,7 @@ def main():
         steer_in, throttle_in = controller.read()
         curve_here = lines[int(player.pos // C.SEG_L) % N].curve
 
-      
+       
         ready = solo or force_start or (
             net.connected()
             and race.rematch_ready(
@@ -323,13 +328,14 @@ def main():
             hit = check_prop_collision(lines, prev_pos, player.pos,
                                        player.x, track_len)
             if hit is not None:
-                apply_penalty(player, crash,
-                              "rock" if hit.rock is not None else "prop")
+                kind = "rock" if hit.rock is not None else "prop"
+                if apply_penalty(player, crash, kind):
+                    audio.play("rock" if kind == "rock" else "crash")
             elif remote is not None and check_car_collision(
                     player.pos, player.x,
                     remote["pos"], remote["x"], track_len):
-                apply_penalty(player, crash, "car")
-               
+                if apply_penalty(player, crash, "car"):
+                    audio.play("crash")
                 player.x += 120.0 if player.x >= remote["x"] else -120.0
 
         if crash.flash > 0.0:
@@ -339,7 +345,29 @@ def main():
         else:
             shake_x = shake_y = 0.0
 
-        
+        speed_frac = player.speed / max(C.MAX_SPEED, 1e-6)
+        audio.set_engine(speed_frac, max(throttle_in, 0.0))
+        audio.loop_surface(abs(player.x) > C.ROAD_W,
+                           abs(player.steer) if speed_frac > 0.3 else 0.0)
+
+        if race.counting_down:
+            n = int(race.timer) + 1
+            if n != last_beep:
+                last_beep = n
+                audio.play("beep")
+        elif last_beep is not None:
+            last_beep = None
+            audio.play("go")
+
+        if race.lap != prev_lap:
+            prev_lap = race.lap
+            audio.play("lap")
+        if race.state != prev_state:
+            if race.state == "finished":
+                audio.play("finish")
+            prev_state = race.state
+
+      
         dust_x = C.WINDOW_WIDTH / 2 + player.steer * C.CAR_DRIFT_PX + shake_x
         dust_y = C.WINDOW_HEIGHT - 78 + shake_y
         dust.update(dt, player.speed, player.steer, throttle_in,
@@ -376,6 +404,7 @@ def main():
 
         pygame.display.update()
 
+    audio.stop()
     controller.close()
     net.close()
     pygame.quit()
